@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>濃度ブレンド計算ツール</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg2: #f5f5f4; --bg3: #eeede9;
+    --text1: #1a1a1a; --text2: #666660; --text3: #999994;
+    --border1: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+    --teal: #1D9E75; --purple: #7F77DD;
+    --accent-bg: #e1f5ee; --accent-text: #085041; --accent-sub: #0f6e56;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1e1e1c; --bg2: #2a2a28; --bg3: #343432;
+      --text1: #f0efeb; --text2: #a0a09a; --text3: #66665f;
+      --border1: rgba(255,255,255,0.12); --border2: rgba(255,255,255,0.22);
+      --accent-bg: #04342c; --accent-text: #9fe1cb; --accent-sub: #5dcaa5;
+    }
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+    background: var(--bg3); color: var(--text1);
+    min-height: 100vh; display: flex; align-items: flex-start;
+    justify-content: center; padding: 2rem 1rem 4rem;
+  }
+  .container { width: 100%; max-width: 520px; }
+  h1 { font-size: 18px; font-weight: 500; margin-bottom: .5rem; }
+  .sub { font-size: 13px; color: var(--text2); margin-bottom: 1.5rem; line-height: 1.6; }
+  .card { background: var(--bg); border: 0.5px solid var(--border1); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+  .section-label { font-size: 12px; font-weight: 500; color: var(--text2); letter-spacing: 0.04em; margin: 0 0 10px; }
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .row:last-child { margin-bottom: 0; }
+  .lbl { font-size: 14px; color: var(--text2); min-width: 112px; flex-shrink: 0; display: flex; align-items: center; gap: 5px; }
+  .input-unit { display: flex; align-items: center; gap: 6px; flex: 1; }
+  input[type=number] {
+    flex: 1; min-width: 0; height: 36px;
+    border: 0.5px solid var(--border2); border-radius: 8px;
+    background: var(--bg); color: var(--text1);
+    font-size: 15px; padding: 0 10px; outline: none;
+    font-family: inherit; -moz-appearance: textfield;
+  }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  input[type=number]:focus { box-shadow: 0 0 0 2px rgba(29,158,117,0.3); border-color: var(--teal); }
+  .unit { font-size: 13px; color: var(--text3); white-space: nowrap; }
+  .tab-bar { display: flex; gap: 6px; margin-bottom: 1rem; }
+  .tab {
+    flex: 1; padding: 9px 4px; font-size: 13px;
+    border: 0.5px solid var(--border2); border-radius: 8px;
+    background: transparent; color: var(--text2);
+    cursor: pointer; text-align: center; font-family: inherit; transition: all 0.15s;
+  }
+  .tab:hover { background: var(--bg2); }
+  .tab.active { background: var(--bg2); color: var(--text1); font-weight: 500; }
+  .seg-bar { display: flex; gap: 4px; flex: 1; }
+  .seg {
+    flex: 1; padding: 7px 4px; font-size: 13px;
+    border: 0.5px solid var(--border2); border-radius: 8px;
+    background: transparent; color: var(--text2);
+    cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.15s;
+  }
+  .seg:hover { background: var(--bg2); }
+  .seg.active { background: var(--bg2); color: var(--text1); font-weight: 500; }
+  .swap-btn {
+    padding: 6px 12px; font-size: 13px;
+    border: 0.5px solid var(--border2); border-radius: 8px;
+    background: transparent; color: var(--text2);
+    cursor: pointer; white-space: nowrap; font-family: inherit; transition: all 0.15s;
+  }
+  .swap-btn:hover { background: var(--bg2); }
+  .divider { border: none; border-top: 0.5px solid var(--border1); margin: 1rem 0; }
+  .error { font-size: 13px; color: #c0392b; padding: 6px 0 2px; min-height: 1.5em; }
+  .result-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; margin-top: 1rem; }
+  .metric { background: var(--bg2); border-radius: 8px; padding: 12px 8px; text-align: center; }
+  .metric.accent { background: var(--accent-bg); }
+  .metric-lbl { font-size: 11px; color: var(--text2); margin-bottom: 5px; }
+  .metric.accent .metric-lbl { color: var(--accent-sub); }
+  .metric-val { font-size: 19px; font-weight: 500; color: var(--text1); }
+  .metric.accent .metric-val { color: var(--accent-text); }
+  .metric-unit { font-size: 11px; color: var(--text2); font-weight: 400; }
+  .metric.accent .metric-unit { color: var(--accent-sub); }
+  .bar-wrap { margin-top: 1rem; }
+  .bar-bg { height: 10px; border-radius: 5px; overflow: hidden; display: flex; }
+  .bar-a { height: 100%; background: var(--teal); transition: width 0.3s; }
+  .bar-b { height: 100%; background: var(--purple); flex: 1; }
+  .bar-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); margin-top: 5px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; flex-shrink: 0; }
+  .dot-a { background: var(--teal); }
+  .dot-b { background: var(--purple); }
+  footer { margin-top: 2rem; font-size: 12px; color: var(--text3); text-align: center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>濃度ブレンド計算ツール</h1>
+  <p class="sub">2種類の素材を混ぜるときの分量を計算します。乳脂肪分に限らず、アルコール濃度や塩分濃度など %で表せる濃度であれば何でも使えます。</p>
+
+  <div class="tab-bar">
+    <button class="tab active" id="tab1" onclick="switchMode(1)">片方のgから計算</button>
+    <button class="tab" id="tab2" onclick="switchMode(2)">合計gから逆算</button>
+    <button class="tab" id="tab3" onclick="switchMode(3)">濃度を確認</button>
+  </div>
+
+  <div class="card">
+    <p class="section-label">素材の濃度設定</p>
+    <div class="row">
+      <span class="lbl"><span class="dot dot-a"></span>素材 A 濃度</span>
+      <div class="input-unit">
+        <input type="number" id="fatA" value="3.6" min="0" max="100" step="0.1" oninput="calc()">
+        <span class="unit">%</span>
+      </div>
+      <button class="swap-btn" onclick="swapAB()">A ⇄ B 入れ替え</button>
+    </div>
+    <div class="row">
+      <span class="lbl"><span class="dot dot-b"></span>素材 B 濃度</span>
+      <div class="input-unit">
+        <input type="number" id="fatB" value="47" min="0" max="100" step="0.1" oninput="calc()">
+        <span class="unit">%</span>
+      </div>
+    </div>
+
+    <div id="target-row">
+      <hr class="divider" style="margin-bottom:1rem;">
+      <p class="section-label">目標濃度</p>
+      <div class="row">
+        <span class="lbl">目標濃度</span>
+        <div class="input-unit">
+          <input type="number" id="fatT" value="35" min="0" max="100" step="0.1" oninput="calc()">
+          <span class="unit">%</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div id="mode1-inputs">
+      <p class="section-label">指定する素材</p>
+      <div class="row" style="margin-bottom:12px;">
+        <div class="seg-bar">
+          <button class="seg active" id="seg-a" onclick="setFixed('A')"><span class="dot dot-a"></span>素材 A を指定</button>
+          <button class="seg" id="seg-b" onclick="setFixed('B')"><span class="dot dot-b"></span>素材 B を指定</button>
+        </div>
+      </div>
+      <div class="row">
+        <span class="lbl" id="fixed-lbl"><span class="dot dot-a"></span>素材 A</span>
+        <div class="input-unit">
+          <input type="number" id="gFixed" value="100" min="0" step="1" oninput="calc()">
+          <span class="unit">g</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="mode2-inputs" style="display:none">
+      <p class="section-label">合計グラム数を指定</p>
+      <div class="row">
+        <span class="lbl">合計</span>
+        <div class="input-unit">
+          <input type="number" id="gTotal" value="500" min="0" step="1" oninput="calc()">
+          <span class="unit">g</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="mode3-inputs" style="display:none">
+      <p class="section-label">それぞれのグラム数を指定</p>
+      <div class="row">
+        <span class="lbl"><span class="dot dot-a"></span>素材 A</span>
+        <div class="input-unit">
+          <input type="number" id="gA3" value="100" min="0" step="1" oninput="calc()">
+          <span class="unit">g</span>
+        </div>
+      </div>
+      <div class="row">
+        <span class="lbl"><span class="dot dot-b"></span>素材 B</span>
+        <div class="input-unit">
+          <input type="number" id="gB3" value="200" min="0" step="1" oninput="calc()">
+          <span class="unit">g</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="error-msg" class="error"></div>
+  <div class="result-grid" id="result-grid"></div>
+  <div class="bar-wrap" id="bar-wrap" style="display:none">
+    <div class="bar-bg">
+      <div class="bar-a" id="bar-a" style="width:50%"></div>
+      <div class="bar-b"></div>
+    </div>
+    <div class="bar-labels">
+      <span id="bar-la"></span>
+      <span id="bar-lb"></span>
+    </div>
+  </div>
+
+  <footer>ピアソンのスクエア法による濃度ブレンド計算</footer>
+</div>
+
+<script>
+var mode = 1;
+var fixedSide = 'A';
+
+function switchMode(m) {
+  mode = m;
+  for (var i = 1; i <= 3; i++) document.getElementById('tab' + i).classList.toggle('active', m === i);
+  document.getElementById('mode1-inputs').style.display = m === 1 ? '' : 'none';
+  document.getElementById('mode2-inputs').style.display = m === 2 ? '' : 'none';
+  document.getElementById('mode3-inputs').style.display = m === 3 ? '' : 'none';
+  document.getElementById('target-row').style.display = m === 3 ? 'none' : '';
+  calc();
+}
+
+function setFixed(side) {
+  fixedSide = side;
+  document.getElementById('seg-a').classList.toggle('active', side === 'A');
+  document.getElementById('seg-b').classList.toggle('active', side === 'B');
+  var cls = side === 'A' ? 'dot-a' : 'dot-b';
+  document.getElementById('fixed-lbl').innerHTML = '<span class="dot ' + cls + '"></span>素材 ' + side;
+  calc();
+}
+
+function swapAB() {
+  var a = document.getElementById('fatA'), b = document.getElementById('fatB');
+  var tmp = a.value; a.value = b.value; b.value = tmp;
+  calc();
+}
+
+function fmt(v, d) { return parseFloat(v.toFixed(d)); }
+
+function showError(msg) {
+  document.getElementById('error-msg').textContent = msg;
+  document.getElementById('result-grid').innerHTML = '';
+  document.getElementById('bar-wrap').style.display = 'none';
+}
+function clearError() { document.getElementById('error-msg').textContent = ''; }
+
+function renderCards(cards) {
+  document.getElementById('result-grid').innerHTML = cards.map(function(c) {
+    return '<div class="metric' + (c.accent ? ' accent' : '') + '">' +
+      '<div class="metric-lbl">' + c.label + '</div>' +
+      '<div class="metric-val">' + c.value + '<span class="metric-unit"> ' + c.unit + '</span></div></div>';
+  }).join('');
+}
+
+function renderBar(gA, gB) {
+  var total = gA + gB;
+  if (total <= 0) { document.getElementById('bar-wrap').style.display = 'none'; return; }
+  var pA = gA / total * 100;
+  document.getElementById('bar-a').style.width = pA.toFixed(1) + '%';
+  document.getElementById('bar-la').innerHTML = '<span class="dot dot-a"></span> 素材 A ' + pA.toFixed(1) + '%';
+  document.getElementById('bar-lb').innerHTML = '<span class="dot dot-b"></span> 素材 B ' + (100 - pA).toFixed(1) + '%';
+  document.getElementById('bar-wrap').style.display = '';
+}
+
+function calc() {
+  var fatA = parseFloat(document.getElementById('fatA').value);
+  var fatB = parseFloat(document.getElementById('fatB').value);
+  if (isNaN(fatA) || isNaN(fatB)) return;
+
+  if (mode === 3) {
+    var gA3 = parseFloat(document.getElementById('gA3').value);
+    var gB3 = parseFloat(document.getElementById('gB3').value);
+    if (isNaN(gA3) || isNaN(gB3) || gA3 < 0 || gB3 < 0) return;
+    if (gA3 + gB3 <= 0) return showError('グラム数を入力してください。');
+    clearError();
+    var tot3 = gA3 + gB3;
+    var fat3 = (gA3 * fatA + gB3 * fatB) / tot3;
+    renderCards([
+      { label: '素材 A', value: fmt(gA3, 1), unit: 'g' },
+      { label: '素材 B', value: fmt(gB3, 1), unit: 'g' },
+      { label: '合計', value: fmt(tot3, 1), unit: 'g', accent: true },
+      { label: '濃度', value: fmt(fat3, 2), unit: '%', accent: true }
+    ]);
+    renderBar(gA3, gB3);
+    return;
+  }
+
+  var fatT = parseFloat(document.getElementById('fatT').value);
+  if (isNaN(fatT)) return;
+  if ([fatA, fatB, fatT].some(function(v) { return v < 0 || v > 100; }))
+    return showError('濃度は 0〜100% の範囲で入力してください。');
+  if (fatA === fatB)
+    return showError('素材 A と素材 B の濃度が同じです。ブレンドの計算ができません。');
+  if (fatT <= Math.min(fatA, fatB) || fatT >= Math.max(fatA, fatB))
+    return showError('目標濃度 (' + fatT + '%) は素材 A (' + fatA + '%) と素材 B (' + fatB + '%) の間に設定してください。');
+  clearError();
+
+  if (mode === 1) {
+    var gFixed = parseFloat(document.getElementById('gFixed').value);
+    if (isNaN(gFixed) || gFixed <= 0) return;
+    var gA, gB;
+    if (fixedSide === 'A') { gA = gFixed; gB = gA * (fatT - fatA) / (fatB - fatT); }
+    else { gB = gFixed; gA = gB * (fatB - fatT) / (fatT - fatA); }
+    var gTot = gA + gB, af = (gA * fatA + gB * fatB) / gTot;
+    renderCards([
+      { label: '素材 A', value: fmt(gA, 1), unit: 'g' },
+      { label: '素材 B', value: fmt(gB, 1), unit: 'g' },
+      { label: '合計', value: fmt(gTot, 1), unit: 'g' },
+      { label: '実際の濃度', value: fmt(af, 2), unit: '%' }
+    ]);
+    renderBar(gA, gB);
+  } else {
+    var gTotal = parseFloat(document.getElementById('gTotal').value);
+    if (isNaN(gTotal) || gTotal <= 0) return;
+    var sA = (fatB - fatT) / (fatB - fatA), gA2 = gTotal * sA, gB2 = gTotal - gA2;
+    var af2 = (gA2 * fatA + gB2 * fatB) / gTotal;
+    renderCards([
+      { label: '素材 A', value: fmt(gA2, 1), unit: 'g' },
+      { label: '素材 B', value: fmt(gB2, 1), unit: 'g' },
+      { label: '合計', value: fmt(gTotal, 1), unit: 'g' },
+      { label: '実際の濃度', value: fmt(af2, 2), unit: '%' }
+    ]);
+    renderBar(gA2, gB2);
+  }
+}
+
+calc();
+</script>
+</body>
+</html>
